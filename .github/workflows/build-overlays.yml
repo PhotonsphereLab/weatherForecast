@@ -2,7 +2,7 @@ name: Build ECMWF overlays
 
 on:
   schedule:
-    # Run ~90 minutes after typical HRES 00/06/12/18Z availability (tune as needed)
+    # ~90 min after typical HRES 00/06/12/18Z availability; adjust as you like
     - cron: "30 2,8,14,20 * * *"
   workflow_dispatch:
 
@@ -35,7 +35,7 @@ jobs:
         run: |
           python scripts/render_overlays.py
 
-      # ---------- DEBUG STEPS ----------
+      # ---------- DEBUG ----------
       - name: Debug: list files and sizes
         run: |
           echo "== data_raw =="
