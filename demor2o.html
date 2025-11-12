@@ -4,12 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Nordic Weather Demo</title>
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
     :root{
       --bg:#0b1220; --fg:#e9eef5; --muted:#93a4b7; --accent:#7cc0ff; --panel:#121a2a;
@@ -20,7 +15,7 @@
     header h1 { font-size: 18px; margin:0; letter-spacing:.3px; }
     header small { color: var(--muted); }
     #sidebar { background: var(--panel); border-right:1px solid rgba(255,255,255,0.08); padding: 12px; overflow:auto; }
-    #map { width:100%; height:100%; }
+    #map { width:100%; height:100%; min-height: 560px; background:#0b1220; }
     .card { background: rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px; margin-bottom: 12px; }
     label { display:block; font-weight:600; margin-bottom:6px; }
     input[type="text"] { width:100%; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.14); background:#0f172a; color:var(--fg); }
@@ -34,6 +29,7 @@
   </style>
 </head>
 <body>
+  <noscript style="color:white;background:#b00020;display:block;padding:10px 16px;">This page needs JavaScript to display the map.</noscript>
   <div id="app">
     <header>
       <h1>Nordic Weather Demo <small class="badge">Leaflet</small></h1>
@@ -77,12 +73,17 @@
     <main id="map"></main>
   </div>
 
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
+    // Guard: if Leaflet failed to load, show a helpful message instead of a blank area.
+    if (typeof L === 'undefined') {
+      document.body.innerHTML += '<div style="position:fixed;inset:0;background:#0b1220;color:#fff;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;z-index:9999;">'+
+        '<div style="max-width:680px;line-height:1.5;">'+
+        '<h2 style="margin:0 0 8px;">Map library failed to load</h2>'+
+        '<p>It looks like the Leaflet CDN was blocked or failed to load. Try a hard refresh (Ctrl/Cmd + Shift + R). If on GitHub Pages, ensure the page is served over <b>HTTPS</b>.</p>'+ 
+        '<p>I switched to the jsDelivr CDN to avoid integrity hash issues. If this persists, check the browser console for network errors.</p>'+
+        '</div></div>';
+    }
     // ---- Map setup
     const map = L.map('map', { zoomControl: true, attributionControl: true }).setView([64.5, 26], 4);
 
@@ -92,7 +93,9 @@
     const baseCarto = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       attribution: attrOSM + attrCarto,
       maxZoom: 18
-    }).addTo(map);
+    });
+    // Add base layer immediately so a map is visible even without API key
+    baseCarto.addTo(map);
 
     const baseOSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: attrOSM,
