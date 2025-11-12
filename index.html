@@ -3,8 +3,16 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>ECMWF Nordic Forecast Viewer</title>
+  <title>Photonsphere Lab ECMWF Nordic Forecast Viewer</title>
+
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Leaflet.TimeDimension -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-timedimension@1.1.0/dist/leaflet.timedimension.control.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-timedimension@1.1.0/dist/leaflet.timedimension.min.js"></script>
+
   <style>
     :root{ --bg:#0b1220; --fg:#e9eef5; --muted:#9db0c7; --panel:#121a2a; --accent:#7cc0ff; }
     html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,Segoe UI,Roboto,Ubuntu,Helvetica,Arial;}
@@ -24,26 +32,25 @@
     .footer-note{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.45);padding:6px 8px;border:1px solid rgba(255,255,255,.15);border-radius:8px;font-size:12px}
     .badge{display:inline-block;padding:2px 6px;border-radius:999px;background:rgba(124,192,255,.15);color:#bfe0ff;font-weight:700;font-size:11px;margin-left:6px}
     .status{position:absolute;right:10px;bottom:10px;background:rgba(0,0,0,.45);padding:6px 8px;border:1px solid rgba(255,255,255,.15);border-radius:8px;font-size:12px}
+    .copyright{font-size:12px;color:var(--muted);line-height:1.35;}
   </style>
 </head>
 <body>
   <div id="app">
     <header>
-      <h1>ECMWF Nordic Forecast Viewer <span class="badge">static overlays</span></h1>
-      <small class="muted">Fennoscandia demo — latest run only</small>
+      <h1>ECMWF Nordic Forecast Viewer <span class="badge">time animation</span></h1>
+      <small class="muted">Fennoscandia demo — latest run</small>
     </header>
+
     <aside id="sidebar">
-      <div class="card">
-        <label>Step (forecast lead)</label>
-        <select id="stepSel"></select>
-      </div>
       <div class="card">
         <label>Variable</label>
         <select id="varSel"></select>
         <div class="muted" style="margin-top:6px">
-          Available: 2 m T, precip rate, MSLP, TCWV, net SW/LW flux, 850/500 hPa geopotential, 850 hPa wind speed.
+          2 m T, precip rate, MSLP, TCWV, net SW/LW flux, 850/500 hPa geopotential, 850 hPa wind speed.
         </div>
       </div>
+
       <div class="card">
         <label>Quick zoom</label>
         <div class="row">
@@ -52,60 +59,35 @@
         </div>
         <div class="row" style="margin-top:8px">
           <button data-city="oulu">Oulu</button>
-          <button data-city="rovaniemi">Rovaniemi</button>
-        </div>
-        <div class="row" style="margin-top:8px">
           <button data-city="stockholm">Stockholm</button>
-          <button data-city="uppsala">Uppsala</button>
-        </div>
-        <div class="row" style="margin-top:8px">
-          <button data-city="tallinn">Tallinn</button>
-          <button data-city="fenno" class="primary">Fennoscandia</button>
         </div>
       </div>
+
       <div class="card">
         <label>About</label>
-        <div class="muted">This page loads pre-rendered PNG overlays from <code>tiles/latest</code>, generated from ECMWF IFS Open Data (HRES). No server required.</div>
+        <div class="muted">
+          Pre-rendered overlays from <code>tiles/latest</code> (ECMWF IFS Open Data). Time slider controls appear on the map.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="copyright">
+          © 2025 Photonsphere Lab. Uses ECMWF IFS Open Data © ECMWF 2025,
+          licensed under CC BY 4.0. “Contains modified Copernicus/ECMWF information.”
+        </div>
       </div>
     </aside>
+
     <div id="map">
       <div class="footer-note">Contains modified ECMWF IFS Open Data (CC BY 4.0)</div>
       <div class="status" id="status">loading…</div>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    // Basic map
-    const map = L.map('map').setView([60.1699, 24.9384], 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-
-    const cities = {
-      helsinki: [60.1699, 24.9384],
-      tampere: [61.4978, 23.7610],
-      oulu: [65.0121, 25.4651],
-      rovaniemi: [66.5039, 25.7294],
-      stockholm: [59.3293, 18.0686],
-      uppsala: [59.8586, 17.6389],
-      tallinn: [59.4370, 24.7536],
-      fenno: [[55.0, 5.0],[72.5, 35.5]]
-    };
-    document.querySelectorAll('[data-city]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const key = btn.dataset.city;
-        if (Array.isArray(cities[key][0])) map.fitBounds(cities[key]);
-        else map.setView(cities[key], 8);
-      });
-    });
-
     const statusEl = document.getElementById('status');
     const varSel = document.getElementById('varSel');
-    const stepSel = document.getElementById('stepSel');
 
-    // Pretty names for variables
     const VAR_LABELS = {
       msl: 'MSLP (hPa)',
       t2m: '2 m temperature (°C)',
@@ -118,73 +100,153 @@
       wspd850: 'Wind speed 850 hPa (m s⁻¹)'
     };
 
-    let overlay = null;
-    let bounds = null;
-    let manifest = null;
-
     function setStatus(msg){ statusEl.textContent = msg; }
 
     async function loadManifest(){
-      const res = await fetch('tiles/latest/manifest.json', {cache: 'no-store'});
+      const res = await fetch('tiles/latest/manifest.json', {cache:'no-store'});
       if(!res.ok) throw new Error('manifest not found');
-      const man = await res.json();
-      return man;
+      return await res.json();
     }
 
-    function populateSelectors(man){
-      // Steps
-      stepSel.innerHTML = '';
-      (man.steps || []).forEach(s => {
-        const opt = document.createElement('option');
-        opt.value = s; opt.textContent = s;
-        stepSel.appendChild(opt);
+    // Simple map, will be replaced by a TimeDimension-enabled map
+    const baseMap = L.map('map', { zoom: 6, center: [62.0, 25.0] });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(baseMap);
+
+    // City quick zooms (reduced list)
+    const cities = {
+      helsinki: [60.1699, 24.9384],
+      tampere: [61.4978, 23.7610],
+      oulu: [65.0121, 25.4651],
+      stockholm: [59.3293, 18.0686]
+    };
+    document.querySelectorAll('[data-city]').forEach(btn => {
+      btn.addEventListener('click', () => baseMap.setView(cities[btn.dataset.city], 8));
+    });
+
+    let manifest = null;
+    let timeDimension = null;
+    let timeControl = null;
+    let tdMap = null;                // TimeDimension-enabled map wrapper
+    let currentLayer = null;         // the time-aware overlay layer
+    let bounds = null;
+
+    // Build times from steps (+000, +003, ...) -> we use T+Xh labels unless manifest.run is an ISO time
+    function buildTimes(steps, runISO){
+      // If runISO is a real ISO string (e.g., "2025-11-12T12:00:00Z"), use it; else use now.
+      let base = runISO && runISO.includes('T') ? new Date(runISO) : new Date();
+      // Normalize base to the hour:
+      base.setUTCMinutes(0,0,0);
+      const hours = steps.map(s => parseInt(s.replace('+',''),10));
+      return hours.map(h => new Date(base.getTime() + h*3600*1000).toISOString());
+    }
+
+    // Custom time-aware overlay that swaps the image on time change
+    function makeTimeOverlayLayer(varKey, steps, bbox){
+      // shared image overlay (we reuse the same object to avoid flicker)
+      const image = L.imageOverlay('', [[bbox[1], bbox[0]], [bbox[3], bbox[2]]], {opacity:0.70});
+      let added = false;
+
+      const TimeLayer = L.TimeDimension.Layer.extend({
+        initialize: function(){
+          L.TimeDimension.Layer.prototype.initialize.call(this, image, {updateTimeDimension:false});
+        },
+        onAdd: function(map){
+          if(!added){
+            image.addTo(map);
+            added = true;
+          }
+          L.TimeDimension.Layer.prototype.onAdd.call(this, map);
+        },
+        onRemove: function(map){
+          L.TimeDimension.Layer.prototype.onRemove.call(this, map);
+        },
+        _onNewTimeLoading: function(e){
+          const time = e.time; // ISO string millis
+          // Map ISO time back to index
+          const idx = this._timeDimension.getAvailableTimes().indexOf(time);
+          if(idx < 0) return;
+          const step = steps[idx]; // "+000", "+003", ...
+          const url = `tiles/latest/${varKey}_${step}.png`; // or .webp if you switch later
+          image.setUrl(url);
+          setStatus(`${VAR_LABELS[varKey]||varKey} — ${step} (frame ${idx+1}/${steps.length})`);
+          this._timeDimension.fire('timeload', {time: time});
+        }
       });
-      // Vars
+      return new TimeLayer();
+    }
+
+    function populateVarSelector(vars){
       varSel.innerHTML = '';
-      (man.vars || []).forEach(v => {
+      vars.forEach(v => {
         const opt = document.createElement('option');
         opt.value = v; opt.textContent = VAR_LABELS[v] || v;
         varSel.appendChild(opt);
       });
-      // defaults
-      if (man.vars && man.vars.includes('msl')) varSel.value = 'msl';
-      if (man.steps && man.steps.includes('+000')) stepSel.value = '+000';
+      // Default selection
+      if (vars.includes('t2m')) varSel.value = 't2m';
     }
 
-    function layerUrl(v, s){
-      // Files named like <var>_<step>.png e.g., msl_+000.png
-      return `tiles/latest/${v}_${s}.png`;
-    }
-
-    function updateOverlay(){
-      const v = varSel.value;
-      const s = stepSel.value;
-      const url = layerUrl(v, s);
-      if (overlay) map.removeLayer(overlay);
-      overlay = L.imageOverlay(url, bounds, {opacity:0.68, interactive:false});
-      overlay.addTo(map);
-      overlay.once('load', () => setStatus(`Loaded: ${VAR_LABELS[v]||v} ${s}`));
-      overlay.once('error', () => setStatus(`Error: ${url} not found`));
-    }
-
-    (async function init(){
+    async function init(){
       try{
         manifest = await loadManifest();
-        // BBox in manifest: [W,S,E,N]
+        // Bounds from manifest.bbox = [W,S,E,N]
         const [W,S,E,N] = manifest.bbox;
         bounds = [[S, W], [N, E]];
-        populateSelectors(manifest);
-        // events
-        varSel.addEventListener('change', updateOverlay);
-        stepSel.addEventListener('change', updateOverlay);
-        // initial layer
-        updateOverlay();
-        setStatus(`Run: ${manifest.run} — bounds set.`);
+        baseMap.fitBounds(bounds);
+
+        populateVarSelector(manifest.vars);
+
+        // Build ISO times for TimeDimension
+        const times = buildTimes(manifest.steps, manifest.run); // run may be "latest" now; still fine
+        timeDimension = new L.TimeDimension({
+          times: times,
+          currentTime: times[0],
+          period: "PT3H"  // 3-hourly frames
+        });
+
+        // Create timedimension map wrapper (re-uses the same baseMap)
+        tdMap = L.map(baseMap, {
+          timeDimension: timeDimension,
+          timeDimensionControl: false
+        });
+
+        // Add a TimeDimension control (play/pause + slider)
+        timeControl = new L.Control.TimeDimension({
+          position: 'bottomleft',
+          timeSliderDragUpdate: true,
+          playerOptions: {
+            buffer: 2,
+            minBufferReady: 1,
+            transitionTime: 600,  // ms per frame
+            loop: true,
+            startOver: true
+          }
+        });
+        tdMap.addControl(timeControl);
+
+        // Create first variable layer
+        const initialVar = varSel.value || manifest.vars[0];
+        currentLayer = makeTimeOverlayLayer(initialVar, manifest.steps, manifest.bbox);
+        currentLayer.addTo(tdMap);
+
+        // When variable changes, swap the time-aware layer
+        varSel.addEventListener('change', () => {
+          if (currentLayer) tdMap.removeLayer(currentLayer);
+          currentLayer = makeTimeOverlayLayer(varSel.value, manifest.steps, manifest.bbox);
+          currentLayer.addTo(tdMap);
+        });
+
+        setStatus(`Ready — ${manifest.steps.length} frames`);
       } catch (e){
         console.error(e);
-        setStatus('No ECMWF overlays found (tiles/latest/manifest.json).');
+        setStatus('Failed to initialize (check manifest & tiles).');
       }
-    })();
+    }
+
+    init();
   </script>
 </body>
 </html>
+
