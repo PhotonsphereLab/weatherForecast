@@ -97,15 +97,21 @@ def hours_from_coord(coord):
         return list(range(coord.size))
 
 def first_run_iso(*datasets):
-    """Find the first dataset with a 'time' coordinate and return ISO string in UTC."""
-    import pandas as pd
+    """Return ISO UTC run time if any dataset has a 'time' coord; else 'latest'."""
+    import numpy as np
     for ds in datasets:
-        if ds is None: continue
-        for name in ("time",):
-            if name in ds.coords:
-                t = pd.to_datetime(ds[name].values[0]).tz_localize("UTC", nonexistent="shift_forward", ambiguous="NaT")
-                return t.isoformat().replace("+00:00","Z")
-    # fallback
+        if ds is None:
+            continue
+        if "time" in getattr(ds, "coords", {}):
+            vals = ds["time"].values
+            # vals can be scalar numpy.datetime64 or an array
+            val = vals if np.isscalar(vals) else vals[0]
+            try:
+                iso = np.datetime_as_string(val, unit="s", timezone="UTC")
+                # ensure trailing 'Z'
+                return iso if iso.endswith("Z") else f"{iso}Z"
+            except Exception:
+                pass
     return "latest"
 
 def render_field_series(ds, vname, convert_fn, palette, prefix):
@@ -213,27 +219,44 @@ def main():
     steps_available.update(render_gh(ds_gh850, 850))
 
     # --- 850-hPa wind speed ---
-    if ds_u850 is not None and ds_v850 is not None:
-        try:
-            vu = [n for n in ds_u850.data_vars if n.startswith("u")][0]
-            vv = [n for n in ds_v850.data_vars if n.startswith("v")][0]
-            tdu = get_time_dim(ds_u850[vu]); tdv = get_time_dim(ds_v850[vv])
-            hrs_u = hours_from_coord(ds_u850[tdu]) if tdu else [0]
-            hrs_v = hours_from_coord(ds_v850[tdv]) if tdv else [0]
-            map_u = {h:i for i,h in enumerate(hrs_u)}
-            map_v = {h:i for i,h in enumerate(hrs_v)}
-            made = []
-            for h in TARGET_STEPS:
-                iu = map_u.get(h); iv = map_v.get(h)
-                if iu is None or iv is None: continue
-                a = subset_bbox(ds_u850[vu].isel({tdu: iu}))
-                b = subset_bbox(ds_v850[vv].isel({tdv: iv}))
-                uu = to_grid(a); vv = to_grid(b)
-                wspd = np.sqrt(uu*uu + vv*vv)
-                save_webp(f"wspd850_+{h:03d}", colorize(wspd, 0, 40, base=(0,0,0), top=(255,255,255)))
-                made.append(h)
-            steps_available.update(made)
-        except Exception as e: print("[WARN] wspd850:", e)
+if ds_u850 is not None and ds_v850 is not None:
+    try:
+        vu = [n for n in ds_u850.data_vars if n.startswith("u")][0]
+        vv = [n for n in ds_v850.data_vars if n.startswith("v")][0]
+
+        tdu = get_time_dim(ds_u850[vu])
+        tdv = get_time_dim(ds_v850[vv])
+
+        hrs_u = hours_from_coord(ds_u850[tdu]) if tdu else [0]
+        hrs_v = hours_from_coord(ds_v850[tdv]) if tdv else [0]
+
+        map_u = {int(h): int(i) for i, h in enumerate(hrs_u)}
+        map_v = {int(h): int(i) for i, h in enumerate(hrs_v)}
+
+        made = []
+        for h in TARGET_STEPS:
+            iu = map_u.get(int(h))
+            iv = map_v.get(int(h))
+            if iu is None or iv is None:
+                continue
+            # ensure pure Python ints for xarray.isel
+            iu = int(iu)
+            iv = int(iv)
+
+            a = subset_bbox(ds_u850[vu].isel({tdu: iu})) if tdu else subset_bbox(ds_u850[vu])
+            b = subset_bbox(ds_v850[vv].isel({tdv: iv})) if tdv else subset_bbox(ds_v850[vv])
+
+            uu = to_grid(a)
+            vv_ = to_grid(b)
+            wspd = np.sqrt(uu * uu + vv_ * vv_)
+
+            save_webp(f"wspd850_+{h:03d}", colorize(wspd, 0, 40, base=(0, 0, 0), top=(255, 255, 255)))
+            made.append(h)
+
+        steps_available.update(made)
+    except Exception as e:
+        print("[WARN] wspd850:", e)
+
 
     # --- Manifest: ISO run time (UTC) if available ---
     run_iso = first_run_iso(ds_msl, ds_t2, ds_tp, ds_ssr, ds_str, ds_tcwv, ds_gh500, ds_gh850, ds_u850, ds_v850)
