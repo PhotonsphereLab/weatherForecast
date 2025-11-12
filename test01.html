@@ -10,7 +10,7 @@
       --bg:#0b1220; --fg:#e9eef5; --muted:#93a4b7; --accent:#7cc0ff; --panel:#121a2a;
     }
     html, body { height:100%; margin:0; background:var(--bg); color:var(--fg); font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
-    #app { display:grid; grid-template-columns: 320px 1fr; grid-template-rows: 60px 1fr; height:100%; }
+    #app { display:grid; grid-template-columns: 320px 1fr; grid-template-rows: 60px 1fr; height:100vh; }
     header { grid-column:1/3; display:flex; align-items:center; justify-content:space-between; padding: 10px 16px; background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0)); border-bottom: 1px solid rgba(255,255,255,0.08); }
     header h1 { font-size: 18px; margin:0; letter-spacing:.3px; }
     header small { color: var(--muted); }
@@ -94,8 +94,13 @@
       attribution: attrOSM + attrCarto,
       maxZoom: 18
     });
-    // Add base layer immediately so a map is visible even without API key
-    baseCarto.addTo(map);
+
+    const baseOSMDefault = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: attrOSM,
+      maxZoom: 19
+    }).addTo(map); // ensure a visible base by default
+
+    // Fallback: if Carto fails, OSM is already visible
 
     const baseOSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: attrOSM,
@@ -178,7 +183,7 @@
     }
 
     // ---- Layer controls
-    const baseMaps = { 'Carto Light': baseCarto, 'OpenStreetMap': baseOSM };
+    const baseMaps = { 'OpenStreetMap (default)': baseOSMDefault, 'Carto Light': baseCarto, 'OpenStreetMap (alt)': baseOSM };
     const layerCtrl = L.control.layers(baseMaps, overlays, { collapsed:false }).addTo(map);
 
     // Small helper to tweak opacity per-layer
@@ -200,6 +205,8 @@
 
     // Start centered on Helsinki by default
     map.setView([60.1699, 24.9384], 7);
+    // Fix for maps inside CSS grid sometimes rendering blank until size is validated
+    setTimeout(()=> map.invalidateSize(), 200);
   </script>
 </body>
 </html>
