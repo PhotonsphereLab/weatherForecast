@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ECMWF Nordic Forecast Viewer</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    :root{ --bg:#0b1220; --fg:#e9eef5; --muted:#9db0c7; --panel:#121a2a; --accent:#7cc0ff; }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,Segoe UI,Roboto,Ubuntu,Helvetica,Arial;}
+    #app{display:grid;grid-template-rows:64px 1fr;grid-template-columns:300px 1fr;grid-template-areas:'header header' 'sidebar map';height:100%;}
+    header{grid-area:header;display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,0));border-bottom:1px solid rgba(255,255,255,.08);}
+    header h1{font-size:18px;margin:0;letter-spacing:.3px}
+    #sidebar{grid-area:sidebar;background:var(--panel);border-right:1px solid rgba(255,255,255,.08);padding:12px;overflow:auto}
+    #map{grid-area:map;position:relative}
+    #map .leaflet-container,#map{width:100%;height:100%;min-height:560px}
+    .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px;margin-bottom:12px}
+    label{font-weight:600;display:block;margin-bottom:6px}
+    select,button{width:100%;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:#0f172a;color:var(--fg)}
+    button.primary{background:var(--accent);color:#08101c;border:none;font-weight:700;cursor:pointer}
+    .muted{color:var(--muted);font-size:12px}
+    .row{display:flex;gap:8px}
+    .row > *{flex:1}
+    .footer-note{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.45);padding:6px 8px;border:1px solid rgba(255,255,255,.15);border-radius:8px;font-size:12px}
+    .badge{display:inline-block;padding:2px 6px;border-radius:999px;background:rgba(124,192,255,.15);color:#bfe0ff;font-weight:700;font-size:11px;margin-left:6px}
+    .status{position:absolute;right:10px;bottom:10px;background:rgba(0,0,0,.45);padding:6px 8px;border:1px solid rgba(255,255,255,.15);border-radius:8px;font-size:12px}
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>ECMWF Nordic Forecast Viewer <span class="badge">static overlays</span></h1>
+      <small class="muted">Fennoscandia demo — latest run only</small>
+    </header>
+    <aside id="sidebar">
+      <div class="card">
+        <label>Step (forecast lead)</label>
+        <select id="stepSel"></select>
+      </div>
+      <div class="card">
+        <label>Variable</label>
+        <select id="varSel"></select>
+        <div class="muted" style="margin-top:6px">
+          Available: 2 m T, precip rate, MSLP, TCWV, net SW/LW flux, 850/500 hPa geopotential, 850 hPa wind speed.
+        </div>
+      </div>
+      <div class="card">
+        <label>Quick zoom</label>
+        <div class="row">
+          <button data-city="helsinki">Helsinki</button>
+          <button data-city="tampere">Tampere</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button data-city="oulu">Oulu</button>
+          <button data-city="rovaniemi">Rovaniemi</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button data-city="stockholm">Stockholm</button>
+          <button data-city="uppsala">Uppsala</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button data-city="tallinn">Tallinn</button>
+          <button data-city="fenno" class="primary">Fennoscandia</button>
+        </div>
+      </div>
+      <div class="card">
+        <label>About</label>
+        <div class="muted">This page loads pre-rendered PNG overlays from <code>tiles/latest</code>, generated from ECMWF IFS Open Data (HRES). No server required.</div>
+      </div>
+    </aside>
+    <div id="map">
+      <div class="footer-note">Contains modified ECMWF IFS Open Data (CC BY 4.0)</div>
+      <div class="status" id="status">loading…</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // Basic map
+    const map = L.map('map').setView([60.1699, 24.9384], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const cities = {
+      helsinki: [60.1699, 24.9384],
+      tampere: [61.4978, 23.7610],
+      oulu: [65.0121, 25.4651],
+      rovaniemi: [66.5039, 25.7294],
+      stockholm: [59.3293, 18.0686],
+      uppsala: [59.8586, 17.6389],
+      tallinn: [59.4370, 24.7536],
+      fenno: [[55.0, 5.0],[72.5, 35.5]]
+    };
+    document.querySelectorAll('[data-city]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.city;
+        if (Array.isArray(cities[key][0])) map.fitBounds(cities[key]);
+        else map.setView(cities[key], 8);
+      });
+    });
+
+    const statusEl = document.getElementById('status');
+    const varSel = document.getElementById('varSel');
+    const stepSel = document.getElementById('stepSel');
+
+    // Pretty names for variables
+    const VAR_LABELS = {
+      msl: 'MSLP (hPa)',
+      t2m: '2 m temperature (°C)',
+      tp_rate: 'Precipitation rate (mm h⁻¹)',
+      tcwv: 'Total column water vapour (kg m⁻²)',
+      ssr_flux: 'Net shortwave flux (W m⁻²)',
+      str_flux: 'Net longwave flux (W m⁻²)',
+      gh500: 'Geopotential height 500 hPa (m)',
+      gh850: 'Geopotential height 850 hPa (m)',
+      wspd850: 'Wind speed 850 hPa (m s⁻¹)'
+    };
+
+    let overlay = null;
+    let bounds = null;
+    let manifest = null;
+
+    function setStatus(msg){ statusEl.textContent = msg; }
+
+    async function loadManifest(){
+      const res = await fetch('tiles/latest/manifest.json', {cache: 'no-store'});
+      if(!res.ok) throw new Error('manifest not found');
+      const man = await res.json();
+      return man;
+    }
+
+    function populateSelectors(man){
+      // Steps
+      stepSel.innerHTML = '';
+      (man.steps || []).forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s; opt.textContent = s;
+        stepSel.appendChild(opt);
+      });
+      // Vars
+      varSel.innerHTML = '';
+      (man.vars || []).forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v; opt.textContent = VAR_LABELS[v] || v;
+        varSel.appendChild(opt);
+      });
+      // defaults
+      if (man.vars && man.vars.includes('msl')) varSel.value = 'msl';
+      if (man.steps && man.steps.includes('+000')) stepSel.value = '+000';
+    }
+
+    function layerUrl(v, s){
+      // Files named like <var>_<step>.png e.g., msl_+000.png
+      return `tiles/latest/${v}_${s}.png`;
+    }
+
+    function updateOverlay(){
+      const v = varSel.value;
+      const s = stepSel.value;
+      const url = layerUrl(v, s);
+      if (overlay) map.removeLayer(overlay);
+      overlay = L.imageOverlay(url, bounds, {opacity:0.68, interactive:false});
+      overlay.addTo(map);
+      overlay.once('load', () => setStatus(`Loaded: ${VAR_LABELS[v]||v} ${s}`));
+      overlay.once('error', () => setStatus(`Error: ${url} not found`));
+    }
+
+    (async function init(){
+      try{
+        manifest = await loadManifest();
+        // BBox in manifest: [W,S,E,N]
+        const [W,S,E,N] = manifest.bbox;
+        bounds = [[S, W], [N, E]];
+        populateSelectors(manifest);
+        // events
+        varSel.addEventListener('change', updateOverlay);
+        stepSel.addEventListener('change', updateOverlay);
+        // initial layer
+        updateOverlay();
+        setStatus(`Run: ${manifest.run} — bounds set.`);
+      } catch (e){
+        console.error(e);
+        setStatus('No ECMWF overlays found (tiles/latest/manifest.json).');
+      }
+    })();
+  </script>
+</body>
+</html>
