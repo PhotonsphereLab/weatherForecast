@@ -146,6 +146,10 @@
             period: "PT3H"
           },
           timeDimensionControl: true
+          timeDimensionControlOptions: {
+          loop: true,       // <- keep looping
+          autoPlay: false   // set this true if you want auto start
+          }
         });
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
