@@ -139,7 +139,6 @@
 
         // map + base
         const map = L.map('map', {
-          timeDimension.setCurrentTime(timeMs),
           timeDimension: true,
           timeDimensionOptions: {
             times: times.join(','),
@@ -152,6 +151,7 @@
           maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
         map.fitBounds(bounds);
+        map.timeDimension.setCurrentTime(timeMs);
 
         if (manifest.run && manifest.run.includes('T')) {
           runLabel.textContent = `Run: ${new Date(manifest.run).toISOString().replace('.000Z','Z')}`;
