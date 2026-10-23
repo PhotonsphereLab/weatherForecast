@@ -209,15 +209,31 @@ def main():
         except Exception as e: print("[WARN] tcwv:", e)
 
     # Geopotential (m^2/s^2) -> m at 500/850 hPa
+    #def render_gh(ds, level):
+    #    if not ds: return []
+    #    try:
+    #        v = [n for n in ds.data_vars if n.startswith("gh")][0]
+    #        rng = (4800,5800) if level==500 else (1200,1700)
+    #        return render_field_series(ds, v, lambda x: x/9.80665, rng, f"gh{level}")
+    #    except Exception as e: print(f"[WARN] gh{level}:", e); return []
+    #steps_available.update(render_gh(ds_gh500, 500))
+    #steps_available.update(render_gh(ds_gh850, 850))
+
+    # Geopotential height (gh) is already in geopotential metres.
     def render_gh(ds, level):
-        if not ds: return []
-        try:
-            v = [n for n in ds.data_vars if n.startswith("gh")][0]
-            rng = (4800,5800) if level==500 else (1200,1700)
-            return render_field_series(ds, v, lambda x: x/9.80665, rng, f"gh{level}")
-        except Exception as e: print(f"[WARN] gh{level}:", e); return []
-    steps_available.update(render_gh(ds_gh500, 500))
-    steps_available.update(render_gh(ds_gh850, 850))
+        if ds is None:
+            return []
+        
+        v = "gh"
+        if v not in ds.data_vars:
+            raise ValueError(
+                f"gh{level}: expected 'gh'; found {list(ds.data_vars)}"
+            )
+            
+        rng = (4800, 5800) if level == 500 else (1200, 1700)
+        return render_field_series(
+            ds, v, lambda x: x, rng, f"gh{level}"
+        )
 
     # 850-hPa wind speed from u,v (m/s)
     if (ds_u850 is not None) and (ds_v850 is not None):
