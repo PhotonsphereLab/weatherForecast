@@ -7,7 +7,7 @@ OUTDIR = Path("data_raw"); OUTDIR.mkdir(parents=True, exist_ok=True)
 # What to fetch
 SFC_PARAMS = ["msl", "2t", "tp", "tcwv", "ssr", "str"]
 PL_PARAMS  = ["u", "v", "gh"]
-PL_LEVELS  = [850, 500]
+PL_LEVELS  = [850, 500] #there is an issue with param gh and its pressure levels, is it not anymore working. Check: "https://pypi.org/project/ecmwf-opendata/" to solve this also adjust scripts/render_overlays.py accordingly
 STEPS_H    = list(range(0, 49, 3))   # 0,3,6,...,48
 
 # Use ECMWF Open Data defaults (IFS 0.25°)
