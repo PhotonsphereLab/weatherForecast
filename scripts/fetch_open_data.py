@@ -11,6 +11,9 @@ PL_LEVELS  = [850, 500]
 STEPS_H    = list(range(0, 49, 3))   # 0,3,6,...,48
 
 # Use ECMWF Open Data defaults (IFS 0.25°)
+# to be implemented the option of resolution
+# e.g.: resol="0p1", param="2t",
+
 c = Client(source="ecmwf")
 
 def fetch_sfc(param: str):
